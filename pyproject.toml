@@ -1,0 +1,105 @@
+[project]
+name = "ml-from-scratch"
+version = "0.1.0"
+description = "Classic machine learning algorithms implemented from scratch in NumPy, with a scikit-learn-style API."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+dependencies = [
+    "numpy>=2.0",
+]
+keywords = ["machine-learning", "numpy", "from-scratch", "education"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+]
+
+[project.urls]
+Repository = "https://github.com/mutiel-ds/ml-from-scratch"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# The distribution is called "ml-from-scratch", but the import package is "mlfs".
+[tool.hatch.build.targets.wheel]
+packages = ["src/mlfs"]
+
+# ---------------------------------------------------------------------------
+# Tooling
+# ---------------------------------------------------------------------------
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",  # pycodestyle
+    "F",       # pyflakes
+    "I",       # isort
+    "N",       # pep8-naming
+    "UP",      # pyupgrade
+    "B",       # flake8-bugbear
+    "SIM",     # flake8-simplify
+    "PT",      # flake8-pytest-style
+    "NPY",     # NumPy-specific rules
+    "D",       # pydocstyle
+    "RUF",     # Ruff-specific rules
+]
+ignore = [
+    "N803",  # argument name `X` should be lowercase: `X` is the ML convention
+    "N806",  # variable `X` in function should be lowercase: same reason
+    "N802",  # function name `check_X_y` should be lowercase: same reason
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D"]
+
+[tool.mypy]
+strict = true
+python_version = "3.11"
+files = ["src", "tests"]
+
+[[tool.mypy.overrides]]
+module = ["sklearn.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--strict-config", "--import-mode=importlib"]
+xfail_strict = true
+filterwarnings = ["error"]
+
+[tool.mutmut]
+source_paths = ["src/mlfs/"]
+pytest_add_cli_args_test_selection = ["tests/"]
+
+[tool.coverage.run]
+source = ["mlfs"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.170.14",
+    "mutmut>=3.8.1",
+    "mypy>=2.4.1",
+    "pre-commit>=4.7.0",
+    "pytest>=9.2.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.17.4",
+    "scikit-learn>=1.9.1",
+]
