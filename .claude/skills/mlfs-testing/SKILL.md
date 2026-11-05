@@ -49,7 +49,8 @@ the code is wrong**. Coverage only proves a line ran; it is not evidence.
 
 ```
 tests/
-├── conftest.py              # Hypothesis profiles, shared fixtures, toy estimators
+├── conftest.py              # Hypothesis profiles, shared fixtures
+├── toy_estimators.py        # tiny contract-following estimators (import directly)
 ├── test_base.py             # mirrors src/mlfs/base.py
 ├── metrics/test_metrics.py
 ├── utils/test_validation.py
@@ -58,7 +59,10 @@ tests/
 
 Tests mirror `src/mlfs`. No `unit/`/`integration/` split: everything is a fast
 unit test. Shared fixtures live in `tests/conftest.py`; a fixture used by only
-one file stays in that file.
+one file stays in that file. Shared helper classes live in plain modules such as
+`tests/toy_estimators.py` (`tests/` is on the import path, so
+`from toy_estimators import MeanRegressor` works); a helper used by only one
+file stays in that file.
 
 ## Anatomy of an algorithm test module
 
