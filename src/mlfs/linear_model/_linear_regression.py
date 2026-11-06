@@ -2,9 +2,11 @@
 
 from typing import Literal, Self
 
+import numpy as np
+
 from mlfs._typing import ArrayLike, FloatArray
 from mlfs.base import BaseRegressor, check_is_fitted
-from mlfs.utils.validation import check_array, check_n_features
+from mlfs.utils.validation import check_array, check_n_features, check_X_y
 
 __all__ = ["LinearRegression"]
 
@@ -105,9 +107,50 @@ class LinearRegression(BaseRegressor):
             raise ValueError(f"tol must be >= 0, got {self.tol}.")
 
     def fit(self, X: ArrayLike, y: ArrayLike) -> Self:
-        """Fit the model. Not implemented yet (added in the next step)."""
+        """Fit the linear model.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Training data.
+        y : array-like of shape (n_samples,)
+            Target values.
+
+        Returns
+        -------
+        self : LinearRegression
+            The fitted estimator.
+
+        Raises
+        ------
+        ValueError
+            If a hyperparameter or the data is invalid.
+        """
         self._check_params()
-        raise NotImplementedError
+        X_checked, y_checked = check_X_y(X, y)
+
+        # Centering gives the intercept for free and never touches the
+        # caller's arrays: the subtractions below create new ones.
+        if self.fit_intercept:
+            X_offset = X_checked.mean(axis=0)
+            y_offset = float(y_checked.mean())
+        else:
+            X_offset = np.zeros(X_checked.shape[1])
+            y_offset = 0.0
+        X_centered = X_checked - X_offset
+        y_centered = y_checked - y_offset
+
+        if self.solver == "lstsq":
+            # SVD-based solve: stable, and the minimum-norm solution when
+            # X is rank-deficient. rcond=None uses the modern default cutoff.
+            coef = np.linalg.lstsq(X_centered, y_centered, rcond=None)[0]
+        else:
+            raise NotImplementedError("gradient_descent is added in a later step.")
+
+        self.coef_ = coef
+        self.intercept_ = float(y_offset - X_offset @ coef)
+        self.n_features_in_ = X_checked.shape[1]
+        return self
 
     def predict(self, X: ArrayLike) -> FloatArray:
         """Predict targets for ``X``.
