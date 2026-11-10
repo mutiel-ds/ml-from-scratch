@@ -343,6 +343,17 @@ def test_gradient_descent_warning_points_at_the_callers_fit_line() -> None:
     assert record[0].filename == __file__
 
 
+def test_refit_with_lstsq_after_gradient_descent_clears_n_iter() -> None:
+    X = [[1], [2]]
+    y = [0, 0]  # zero gradient at w = 0, so gradient descent stops with n_iter_ = 0
+    model = LinearRegression(solver="gradient_descent").fit(X, y)
+    assert model.n_iter_ == 0
+
+    model.set_params(solver="lstsq").fit(X, y)
+
+    assert not hasattr(model, "n_iter_")
+
+
 def test_fit_with_lstsq_solver_does_not_set_n_iter() -> None:
     model = LinearRegression(solver="lstsq").fit([[0], [1]], [0, 1])
 

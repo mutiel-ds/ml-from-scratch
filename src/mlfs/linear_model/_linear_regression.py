@@ -195,6 +195,9 @@ class LinearRegression(BaseRegressor):
             # SVD-based solve: stable, and the minimum-norm solution when
             # X is rank-deficient. rcond=None uses the modern default cutoff.
             coef = np.linalg.lstsq(X_centered, y_centered, rcond=None)[0]
+            # A previous gradient descent fit of this object must not leave a
+            # stale iteration count behind.
+            vars(self).pop("n_iter_", None)
         else:
             coef, self.n_iter_ = self._gradient_descent(X_centered, y_centered)
 
