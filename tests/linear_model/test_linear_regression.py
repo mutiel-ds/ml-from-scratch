@@ -8,7 +8,7 @@ from hypothesis.extra import numpy as hnp
 from sklearn.linear_model import LinearRegression as SklearnLinearRegression
 
 from mlfs._typing import FloatArray
-from mlfs.exceptions import NotFittedError
+from mlfs.exceptions import ConvergenceWarning, NotFittedError
 from mlfs.linear_model import LinearRegression
 from mlfs.utils.estimator_checks import check_estimator
 
@@ -20,8 +20,11 @@ from mlfs.utils.estimator_checks import check_estimator
     [
         LinearRegression(),
         LinearRegression(fit_intercept=False),
+        LinearRegression(
+            solver="gradient_descent", learning_rate=0.1, max_iter=5000, tol=1e-8
+        ),
     ],
-    ids=["defaults", "no-intercept"],
+    ids=["defaults", "no-intercept", "gradient-descent"],
 )
 def test_linear_regression_satisfies_estimator_contract(
     estimator: LinearRegression,
@@ -167,6 +170,138 @@ def test_fit_on_exact_linear_data_recovers_generating_parameters(
 
     np.testing.assert_allclose(model.coef_, w, atol=_ATOL)
     assert model.intercept_ == pytest.approx(b, abs=_ATOL)
+
+
+# --- Gradient descent -------------------------------------------------------
+
+
+def test_gradient_descent_with_one_iteration_warns_and_returns_partial_solution() -> (
+    None
+):
+    X = [[1], [2]]
+    y = [1, 2]
+
+    with pytest.warns(ConvergenceWarning, match="did not converge"):
+        model = LinearRegression(
+            solver="gradient_descent",
+            learning_rate=0.1,
+            max_iter=1,
+            fit_intercept=False,
+        ).fit(X, y)
+
+    # gradient at w = 0: X^T (X*0 - y) / n = -(1*1 + 2*2) / 2 = -2.5
+    # one update: w = 0 - 0.1 * (-2.5) = 0.25
+    np.testing.assert_allclose(model.coef_, [0.25])
+    assert model.n_iter_ == 1
+
+
+def test_gradient_descent_with_two_iterations_returns_approximate_solution() -> None:
+    X = [[1], [2]]
+    y = [1, 2]
+
+    with pytest.warns(ConvergenceWarning, match="did not converge"):
+        model = LinearRegression(
+            solver="gradient_descent",
+            learning_rate=0.1,
+            max_iter=2,
+            fit_intercept=False,
+        ).fit(X, y)
+
+    # after the first update w = 0.25 (see the one-iteration test)
+    # gradient at w = 0.25: residuals = [0.25 - 1, 0.5 - 2] = [-0.75, -1.5]
+    #   -> (1*(-0.75) + 2*(-1.5)) / 2 = -1.875
+    # second update: w = 0.25 - 0.1 * (-1.875) = 0.4375
+    np.testing.assert_allclose(model.coef_, [0.4375])
+    assert model.n_iter_ == 2
+
+
+def test_gradient_descent_with_zero_gradient_returns_zero_weight_and_no_warning() -> (
+    None
+):
+    X = [[1], [2]]
+    y = [0, 0]
+
+    # No pytest.warns here: pyproject.toml sets filterwarnings = ["error"], so
+    # a ConvergenceWarning would turn into an exception and fail this test.
+    model = LinearRegression(
+        solver="gradient_descent", learning_rate=0.1, fit_intercept=False
+    ).fit(X, y)
+
+    # gradient at w = 0: -(1*0 + 2*0) / 2 = 0, which is below tol, so it stops
+    # before the first update (atol because the expected weight is 0)
+    np.testing.assert_allclose(model.coef_, [0.0], atol=1e-12)
+    assert model.n_iter_ == 0
+
+
+def test_gradient_descent_on_exact_line_converges_to_slope_and_intercept() -> None:
+    X = [[0], [1], [2], [3], [4]]
+    y = [1, 3, 5, 7, 9]  # y = 2x + 1
+
+    model = LinearRegression(
+        solver="gradient_descent", learning_rate=0.1, max_iter=10_000, tol=1e-10
+    ).fit(X, y)
+
+    # Stopping at ||gradient|| < 1e-10 leaves a weight error of about
+    # tol / lambda_min (lambda_min = 2 here), far below the 1e-6 tolerance.
+    np.testing.assert_allclose(model.coef_, [2.0], atol=1e-6)
+    assert model.intercept_ == pytest.approx(1.0, abs=1e-6)
+
+
+@pytest.mark.parametrize(
+    "fit_intercept", [True, False], ids=["intercept", "no-intercept"]
+)
+def test_gradient_descent_matches_lstsq_on_noisy_data(fit_intercept: bool) -> None:
+    rng = np.random.default_rng(2)
+    X = rng.normal(size=(50, 3))
+    y = X @ [1.5, -2.0, 0.5] + 3.0 + rng.normal(scale=0.5, size=50)
+    gd = LinearRegression(
+        fit_intercept=fit_intercept,
+        solver="gradient_descent",
+        learning_rate=0.1,
+        max_iter=50_000,
+        tol=1e-12,
+    )
+
+    gd.fit(X, y)
+    exact = LinearRegression(fit_intercept=fit_intercept).fit(X, y)
+
+    # Iterative solver: it stops when the gradient is below 1e-12, so the
+    # weights agree with the closed form to roughly 1e-12 / lambda_min.
+    np.testing.assert_allclose(gd.coef_, exact.coef_, atol=1e-8)
+    assert gd.intercept_ == pytest.approx(exact.intercept_, abs=1e-8)
+
+
+@given(y=_targets)
+def test_gradient_descent_matches_lstsq_for_any_targets(y: FloatArray) -> None:
+    gd = LinearRegression(
+        solver="gradient_descent", learning_rate=0.1, max_iter=50_000, tol=1e-12
+    ).fit(_X_FIXED, y)
+
+    exact = LinearRegression().fit(_X_FIXED, y)
+
+    # Same reasoning as above: the stopping rule bounds the weight error.
+    np.testing.assert_allclose(gd.coef_, exact.coef_, atol=1e-7)
+    assert gd.intercept_ == pytest.approx(exact.intercept_, abs=1e-7)
+
+
+def test_gradient_descent_with_too_large_learning_rate_raises_value_error() -> None:
+    model = LinearRegression(solver="gradient_descent", learning_rate=10.0)
+
+    with pytest.raises(ValueError, match="diverged"):
+        model.fit([[0], [1], [2], [3], [4]], [1, 3, 5, 7, 9])
+
+
+def test_gradient_descent_without_enough_iterations_warns() -> None:
+    model = LinearRegression(solver="gradient_descent", max_iter=3)
+
+    with pytest.warns(ConvergenceWarning, match="did not converge"):
+        model.fit([[0], [1], [2], [3], [4]], [1, 3, 5, 7, 9])
+
+
+def test_fit_with_lstsq_solver_does_not_set_n_iter() -> None:
+    model = LinearRegression(solver="lstsq").fit([[0], [1]], [0, 1])
+
+    assert not hasattr(model, "n_iter_")
 
 
 # --- Errors and edge cases --------------------------------------------------

@@ -133,13 +133,15 @@ class LinearRegression(BaseRegressor):
         # and then NaN. That is reported below as an error, so NumPy's own
         # overflow warnings would only be noise.
         with np.errstate(over="ignore", invalid="ignore"):
-            for n_iter in range(self.max_iter + 1):
+            n_iter = 0
+            while True:
                 gradient = X.T @ (X @ coef - y) / n_samples
                 if np.linalg.norm(gradient) < self.tol:
                     return coef, n_iter
                 if n_iter == self.max_iter:
                     break  # out of updates; the last solution was just checked
                 coef = coef - self.learning_rate * gradient
+                n_iter += 1
                 if not np.all(np.isfinite(coef)):
                     raise ValueError(
                         "Gradient descent diverged: the weights are not finite. "
