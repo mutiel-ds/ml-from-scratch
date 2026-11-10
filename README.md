@@ -15,7 +15,7 @@ enough to reuse.
 
 | Algorithm | Import | Status |
 |---|---|---|
-| Linear regression | `mlfs.linear_model.LinearRegression` | In progress |
+| Linear regression | `mlfs.linear_model.LinearRegression` | Done |
 | Ridge regression | `mlfs.linear_model.Ridge` | Planned |
 | Logistic regression | `mlfs.linear_model.LogisticRegression` | Planned |
 | k-nearest neighbors | `mlfs.neighbors` | Planned |
@@ -24,7 +24,7 @@ enough to reuse.
 | Gaussian Naive Bayes | `mlfs.naive_bayes.GaussianNB` | Planned |
 | PCA | `mlfs.decomposition.PCA` | Planned |
 
-Available now: metrics (`mean_squared_error`, `r2_score`, `accuracy_score`),
+Also available: metrics (`mean_squared_error`, `r2_score`, `accuracy_score`),
 input validation, and the estimator base classes. See
 [docs/ROADMAP.md](docs/ROADMAP.md) for progress.
 
@@ -46,10 +46,20 @@ The package is called `ml-from-scratch`, and you import it as `mlfs`
 (Machine Learning From Scratch):
 
 ```python
+from mlfs.linear_model import LinearRegression
 from mlfs.metrics import r2_score
 
-r2_score([3.0, 5.0, 7.0], [2.9, 5.2, 6.8])
+X = [[0.0], [1.0], [2.0], [3.0]]
+y = [1.0, 3.0, 5.0, 7.0]  # y = 2x + 1
+
+model = LinearRegression().fit(X, y)
+print(model.coef_, model.intercept_)  # [2.] 1.0
+print(r2_score(y, model.predict(X)))  # 1.0
 ```
+
+[`examples/linear_regression.py`](examples/linear_regression.py) compares the
+closed-form solver, gradient descent and a by-hand implementation, and times
+them against scikit-learn.
 
 ## Design
 
@@ -67,7 +77,8 @@ against every algorithm, and it also works for your own estimators built on
 `mlfs.base`.
 
 NumPy is the only runtime dependency. scikit-learn is used only in the test
-suite, as a reference to check results against.
+suite, as a reference to check results against, and optionally in the
+examples for timing comparisons.
 
 ## Development
 
@@ -86,12 +97,14 @@ uv run mypy                    # strict type checking
 ```
 src/mlfs/
 ├── base.py                # estimator base classes and check_is_fitted
-├── exceptions.py          # NotFittedError
+├── exceptions.py          # NotFittedError, ConvergenceWarning
+├── linear_model/          # LinearRegression
 ├── metrics/               # regression and classification metrics
 └── utils/
     ├── validation.py      # input validation shared by all estimators
     └── estimator_checks.py
 tests/                     # mirrors src/mlfs
+examples/                  # runnable scripts using the public API
 ```
 
 ## License

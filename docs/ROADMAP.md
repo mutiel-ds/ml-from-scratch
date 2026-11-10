@@ -1,7 +1,9 @@
 # Roadmap
 
 Maintained by the coordinator session. Each algorithm is built in its own
-session and branch (`feat/<algorithm>`), following the rules in `CLAUDE.md`.
+session, worktree and branch, following the rules in `CLAUDE.md`. The branch
+column gives the short name; the app creates the branch as
+`claude/<name>-<suffix>`, which is merged into `main` with `--no-ff`.
 
 ## Phase 0: foundation
 
@@ -13,29 +15,35 @@ session and branch (`feat/<algorithm>`), following the rules in `CLAUDE.md`.
 | Shared contract checks (`mlfs.utils.estimator_checks`) | Done |
 | Metrics: `mean_squared_error`, `r2_score`, `accuracy_score` | Done |
 | Tooling: ruff, mypy (strict), pytest + coverage, pre-commit, GitHub Actions | Done |
-| Runtime and dev dependencies installed with uv | Waiting for owner |
+| Runtime and dev dependencies installed with uv | Done |
 
 ## Phase 1: reference implementation
 
 | Algorithm | Module | Branch | Status |
 |---|---|---|---|
-| Linear regression (normal equation + gradient descent) | `mlfs.linear_model` | `feat/linear-regression` | Planned |
+| Linear regression (least squares + gradient descent) | `mlfs.linear_model` | `linear-regression` | Done |
 
-Once linear regression is merged, `CLAUDE.md` is reviewed and adjusted based on
-what the first session learned, before starting Phase 2.
+What the first session taught us, now reflected in `CLAUDE.md` and the
+`mlfs-testing` skill:
+
+- `ConvergenceWarning` (in `mlfs.exceptions`) is the shared warning for
+  iterative solvers that hit `max_iter`.
+- Examples use only the public API and may import scikit-learn optionally.
+- `assert_allclose` needs `atol` whenever an expected value is 0, and tests
+  that inspect the call stack are skipped under mutmut and checked by hand.
 
 ## Phase 2: parallel algorithm sessions
 
 | Algorithm | Module | Branch | Status |
 |---|---|---|---|
-| Ridge regression | `mlfs.linear_model` | `feat/ridge` | Planned |
-| Logistic regression | `mlfs.linear_model` | `feat/logistic-regression` | Planned |
-| k-nearest neighbors | `mlfs.neighbors` | `feat/knn` | Planned |
-| k-means (k-means++ init) | `mlfs.cluster` | `feat/kmeans` | Planned |
-| Decision tree (CART) | `mlfs.tree` | `feat/decision-tree` | Planned |
-| Gaussian Naive Bayes | `mlfs.naive_bayes` | `feat/naive-bayes` | Planned |
-| PCA | `mlfs.decomposition` | `feat/pca` | Planned |
-| Train/test split | `mlfs.model_selection` | `feat/train-test-split` | Planned |
+| Ridge regression | `mlfs.linear_model` | `ridge` | Planned |
+| Logistic regression | `mlfs.linear_model` | `logistic-regression` | Planned |
+| k-nearest neighbors | `mlfs.neighbors` | `knn` | Planned |
+| k-means (k-means++ init) | `mlfs.cluster` | `kmeans` | Planned |
+| Decision tree (CART) | `mlfs.tree` | `decision-tree` | Planned |
+| Gaussian Naive Bayes | `mlfs.naive_bayes` | `naive-bayes` | Planned |
+| PCA | `mlfs.decomposition` | `pca` | Planned |
+| Train/test split | `mlfs.model_selection` | `train-test-split` | Planned |
 
 Notes:
 

@@ -13,8 +13,8 @@ The distribution is `ml-from-scratch`; the import package is `mlfs`
 - One **coordinator** session owns the repository plan (`docs/ROADMAP.md`),
   shared code and docs.
 - Each algorithm is built by its own **algorithm session**, in its own git
-  worktree and branch (`feat/<algorithm>`), from a brief written by the
-  coordinator.
+  worktree and branch (the app names it `claude/<algorithm>-<suffix>`), from a
+  brief written by the coordinator.
 - **Never commit, push, or create GitHub repositories, branches or PRs.** The
   owner (Mario) reviews and commits all work himself. Leave changes in the
   working tree.
