@@ -125,7 +125,8 @@ def test_fit_with_single_sample_and_intercept_returns_zero_weight() -> None:
 
 
 def test_predict_after_fit_returns_weights_times_x_plus_intercept() -> None:
-    # Same data as the TODO case 1: w = 1, b = 2, so y_pred = x + 2.
+    # Same data as test_fit_with_one_feature_shrinks_slope_towards_zero:
+    # w = 1, b = 2, so y_pred = x + 2.
     model = Ridge(alpha=2.0).fit([[1], [2], [3]], [2, 4, 6])
 
     y_pred = model.predict([[0], [10]])

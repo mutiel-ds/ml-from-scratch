@@ -99,6 +99,17 @@ class Ridge(BaseRegressor):
     n_iter_ : int
         Number of gradient descent steps run. Only set by
         ``solver="gradient_descent"``.
+
+    Examples
+    --------
+    >>> from mlfs.linear_model import Ridge
+    >>> model = Ridge(alpha=2.0).fit([[1], [2], [3]], [2, 4, 6])
+    >>> model.coef_
+    array([1.])
+    >>> model.intercept_
+    2.0
+    >>> model.predict([[4]])
+    array([6.])
     """
 
     coef_: FloatArray
