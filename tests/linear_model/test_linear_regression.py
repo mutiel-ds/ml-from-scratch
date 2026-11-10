@@ -1,5 +1,8 @@
 """Tests for mlfs.linear_model.LinearRegression."""
 
+import re
+import sys
+
 import numpy as np
 import pytest
 from hypothesis import given
@@ -233,6 +236,24 @@ def test_gradient_descent_with_zero_gradient_returns_zero_weight_and_no_warning(
     assert model.n_iter_ == 0
 
 
+def test_gradient_descent_with_gradient_norm_equal_to_tol_keeps_going() -> None:
+    X = [[1], [2]]
+    y = [1, 2]
+
+    model = LinearRegression(
+        solver="gradient_descent",
+        learning_rate=0.1,
+        max_iter=1,
+        tol=2.5,
+        fit_intercept=False,
+    ).fit(X, y)
+
+    # gradient at w = 0: -(1*1 + 2*2)/2 = -2.5, norm 2.5 == tol, so a strict "<"
+    # does not stop; one update gives w = 0.25 and the new gradient is -1.875 < 2.5.
+    np.testing.assert_allclose(model.coef_, [0.25])
+    assert model.n_iter_ == 1
+
+
 def test_gradient_descent_on_exact_line_converges_to_slope_and_intercept() -> None:
     X = [[0], [1], [2], [3], [4]]
     y = [1, 3, 5, 7, 9]  # y = 2x + 1
@@ -287,21 +308,67 @@ def test_gradient_descent_matches_lstsq_for_any_targets(y: FloatArray) -> None:
 def test_gradient_descent_with_too_large_learning_rate_raises_value_error() -> None:
     model = LinearRegression(solver="gradient_descent", learning_rate=10.0)
 
-    with pytest.raises(ValueError, match="diverged"):
+    message = (
+        "Gradient descent diverged: the weights are not finite. "
+        "Use a smaller learning_rate or scale the features."
+    )
+    with pytest.raises(ValueError, match=re.escape(message)):
         model.fit([[0], [1], [2], [3], [4]], [1, 3, 5, 7, 9])
 
 
 def test_gradient_descent_without_enough_iterations_warns() -> None:
     model = LinearRegression(solver="gradient_descent", max_iter=3)
 
-    with pytest.warns(ConvergenceWarning, match="did not converge"):
+    message = (
+        "Gradient descent did not converge within max_iter=3 iterations. "
+        "Increase max_iter or learning_rate, or scale the features."
+    )
+    with pytest.warns(ConvergenceWarning, match=re.escape(message)):
         model.fit([[0], [1], [2], [3], [4]], [1, 3, 5, 7, 9])
+
+
+# mutmut wraps every function in a trampoline, which adds a stack frame and so
+# shifts where stacklevel points. The test is only meaningful without it.
+@pytest.mark.skipif(
+    "mutmut" in sys.modules, reason="mutmut's trampoline changes the call stack"
+)
+def test_gradient_descent_warning_points_at_the_callers_fit_line() -> None:
+    model = LinearRegression(solver="gradient_descent", max_iter=3)
+
+    with pytest.warns(ConvergenceWarning) as record:
+        model.fit([[0], [1], [2], [3], [4]], [1, 3, 5, 7, 9])
+
+    # stacklevel=3 blames the line that called fit (this file), not the
+    # library's internals.
+    assert record[0].filename == __file__
 
 
 def test_fit_with_lstsq_solver_does_not_set_n_iter() -> None:
     model = LinearRegression(solver="lstsq").fit([[0], [1]], [0, 1])
 
     assert not hasattr(model, "n_iter_")
+
+
+# --- Hyperparameters --------------------------------------------------------
+
+
+def test_init_without_arguments_uses_documented_defaults() -> None:
+    params = LinearRegression().get_params()
+
+    assert params == {
+        "fit_intercept": True,
+        "solver": "lstsq",
+        "learning_rate": 0.01,
+        "max_iter": 1000,
+        "tol": 1e-6,
+    }
+
+
+def test_fit_with_zero_tol_is_accepted() -> None:
+    # tol=0 is a valid (if demanding) stopping rule, so the boundary is allowed.
+    model = LinearRegression(tol=0.0).fit([[0], [1]], [0, 1])
+
+    assert model.n_features_in_ == 1
 
 
 # --- Errors and edge cases --------------------------------------------------
