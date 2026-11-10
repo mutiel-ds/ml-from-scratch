@@ -84,6 +84,9 @@ estimator. The rules:
 - Implementation modules are private (`_name.py`); users import from the
   subpackage (`from mlfs.linear_model import LinearRegression`).
 - Comments explain *why*, not *what*.
+- Scripts in `examples/` show how a user would use the library, so they import
+  only the public API (never private modules such as `mlfs._typing`; use
+  `numpy.typing` for type hints there).
 
 ## Testing standard
 
@@ -96,7 +99,9 @@ mutation testing. In short, each algorithm's test module must include:
    combination.
 2. **Correctness against scikit-learn:** compare fitted attributes and
    predictions with the scikit-learn equivalent using `np.testing.assert_allclose`.
-   scikit-learn is a dev-only dependency and may only be imported in tests.
+   scikit-learn is a dev-only dependency: it may be imported in tests, and in
+   `examples/` only as an optional import (`try`/`except ImportError`), never
+   from `src/`.
 3. **Known answers:** at least one tiny hand-checkable case (for example data
    lying exactly on a line).
 4. **Edge cases and errors:** invalid hyperparameters, a single sample or

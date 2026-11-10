@@ -17,7 +17,10 @@ produced without arithmetic (for example a copy).
 - `assert_allclose` defaults to `rtol=1e-7, atol=0`. Keep that for closed-form
   computations on well-conditioned data.
 - Use `atol` when the expected value is 0 (`rtol` is meaningless there):
-  `assert_allclose(residuals, 0.0, atol=1e-12)`.
+  `assert_allclose(residuals, 0.0, atol=1e-12)`. This also applies when only
+  **some** elements are 0, such as a zero intercept or one zero weight: the
+  allowed error there is `rtol * 0 = 0`, so a harmless `1e-16` rounding error
+  fails the test. Pass both, for example `rtol=1e-7, atol=1e-12`.
 - Iterative methods (gradient descent) converge approximately: set the
   tolerance from the algorithm's stopping criterion and **write the reason in
   a comment**. Loosening a tolerance until a test passes is not a reason.

@@ -42,6 +42,28 @@ For each surviving mutant, decide which case it is:
 Do not change the source code only to make a mutant easier to kill, unless the
 change also makes the code clearer.
 
+## Tests that depend on the call stack
+
+mutmut runs mutated code through an extra wrapper function (a "trampoline"),
+which adds one frame to the call stack. Tests that inspect the stack, such as
+checking that a warning's `stacklevel` points at the caller's line, therefore
+fail under mutmut even with correct code. Skip only those tests while mutmut
+is running:
+
+```python
+import sys
+
+
+@pytest.mark.skipif(
+    "mutmut" in sys.modules, reason="mutmut's trampoline changes the call stack"
+)
+def test_gradient_descent_warning_points_at_the_callers_fit_line() -> None: ...
+```
+
+The mutants such a test would kill (for example `stacklevel=3` changed to `4`)
+then survive. Verify them by hand once (edit the value, run the test, see it
+fail, revert) and list them in the report as "checked by hand".
+
 ## Reporting
 
 Report the final counts (killed / survived / total) per module, and every
