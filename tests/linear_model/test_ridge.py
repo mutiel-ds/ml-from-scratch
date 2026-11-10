@@ -440,7 +440,10 @@ def test_fit_with_invalid_hyperparameter_raises_value_error(
 def test_fit_with_solve_alpha_zero_and_collinear_features_raises_value_error() -> None:
     model = Ridge(alpha=0.0, solver="solve", fit_intercept=False)
 
-    with pytest.raises(ValueError, match="singular"):
+    message = (
+        "The regularized normal equation is singular. Use alpha > 0 or solver='lstsq'."
+    )
+    with pytest.raises(ValueError, match=re.escape(message)):
         model.fit([[1, 2], [2, 4], [3, 6]], [1, 2, 3])
 
 
