@@ -71,9 +71,13 @@ estimator. The rules:
    then `check_n_features(X, self.n_features_in_)`.
 5. Randomness only through a `random_state` hyperparameter converted with
    `check_random_state`. Never use the global `np.random` state.
-6. NumPy is the only runtime dependency. Do not import scikit-learn, SciPy or
+6. Gradient-based solvers use `gradient_descent` and
+   `check_gradient_descent_params` from `mlfs.utils._optimize`: pass the
+   gradient of your loss and call it directly from `fit`, so its
+   `ConvergenceWarning` points at the user's line. Do not write a new loop.
+7. NumPy is the only runtime dependency. Do not import scikit-learn, SciPy or
    anything else from `src/`.
-7. Prefer vectorized NumPy over Python loops over samples. Prefer numerically
+8. Prefer vectorized NumPy over Python loops over samples. Prefer numerically
    stable formulations (for example `np.linalg.lstsq` or `solve` over
    explicitly inverting a matrix).
 

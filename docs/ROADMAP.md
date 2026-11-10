@@ -49,8 +49,8 @@ Notes:
 
 - k-means needs a `BaseClusterer` in `mlfs.base`; the coordinator adds it
   before that session starts.
-- `Ridge` and `LinearRegression` repeat the gradient-descent loop and the
-  hyperparameter checks. Before Lasso or ElasticNet, the coordinator moves
-  them into a shared private helper.
+- Iterative solvers use the shared `gradient_descent` and
+  `check_gradient_descent_params` in `mlfs.utils._optimize` (extracted from
+  `LinearRegression` and `Ridge`); each estimator supplies only its gradient.
 - Sessions sharing a subpackage (`linear_model`) only conflict on its
   `__init__.py` exports; the coordinator resolves those when merging.
