@@ -76,9 +76,15 @@ module = ["sklearn.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "src"]  # src: run the Examples sections of docstrings
 pythonpath = ["tests"]  # lets tests import shared helpers such as toy_estimators
-addopts = ["-ra", "--strict-markers", "--strict-config", "--import-mode=importlib"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--import-mode=importlib",
+    "--doctest-modules",
+]
 xfail_strict = true
 filterwarnings = ["error"]
 

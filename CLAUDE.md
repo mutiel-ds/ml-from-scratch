@@ -85,6 +85,9 @@ estimator. The rules:
   `Parameters`, `Returns`/`Attributes`, `Raises` where relevant, and
   `Examples` on estimators. The class docstring explains the **math** (LaTeX
   in `.. math::` blocks) and links to a reference if useful.
+- `Examples` sections are run as doctests by `uv run pytest`
+  (`--doctest-modules`), and the printed output must match exactly. Use
+  small, hand-checkable numbers so the expected output is short and stable.
 - Implementation modules are private (`_name.py`); users import from the
   subpackage (`from mlfs.linear_model import LinearRegression`).
 - Comments explain *why*, not *what*.
