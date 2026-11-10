@@ -68,5 +68,9 @@ dedicated test for it.
   narrow the strategy instead.
 - For floating point, compare with tolerances (`assert_allclose`), and pick
   element bounds that keep the math well-conditioned.
+- For estimators, keep a fixed, seeded, well-conditioned `X` at module level
+  and let Hypothesis vary only `y` and the hyperparameters. A generated `X`
+  is often nearly singular, and then failures come from conditioning, not
+  from the property.
 - Slow properties (fitting models) can lower `max_examples` with
   `@settings(max_examples=25)` and a comment explaining why.

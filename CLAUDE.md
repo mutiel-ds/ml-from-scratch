@@ -58,6 +58,10 @@ estimator. The rules:
    same name. No validation or computation in `__init__`.
 3. `fit(X, y)`:
    - validates hyperparameters (raise `ValueError` with a helpful message);
+     check floats with `np.isfinite` first, because `nan < 0` is False and
+     would slip through a plain range check;
+   - turns predictable numerical failures (for example `np.linalg.LinAlgError`
+     on a singular system) into a `ValueError` that says how to fix them;
    - validates data with `check_X_y` (or `check_array` for transformers);
    - never modifies the caller's arrays in place;
    - stores everything it learns in attributes with a trailing underscore

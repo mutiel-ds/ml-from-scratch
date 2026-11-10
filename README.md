@@ -16,7 +16,7 @@ enough to reuse.
 | Algorithm | Import | Status |
 |---|---|---|
 | Linear regression | `mlfs.linear_model.LinearRegression` | Done |
-| Ridge regression | `mlfs.linear_model.Ridge` | Planned |
+| Ridge regression | `mlfs.linear_model.Ridge` | Done |
 | Logistic regression | `mlfs.linear_model.LogisticRegression` | Planned |
 | k-nearest neighbors | `mlfs.neighbors` | Planned |
 | k-means | `mlfs.cluster.KMeans` | Planned |
@@ -61,6 +61,10 @@ print(r2_score(y, model.predict(X)))  # 1.0
 closed-form solver, gradient descent and a by-hand implementation, and times
 them against scikit-learn.
 
+[`examples/ridge.py`](examples/ridge.py) shows how ridge shrinks the weights,
+why it stays stable with nearly collinear features, and benchmarks its three
+solvers.
+
 ## Design
 
 Every estimator follows the same contract, defined in
@@ -98,7 +102,7 @@ uv run mypy                    # strict type checking
 src/mlfs/
 ├── base.py                # estimator base classes and check_is_fitted
 ├── exceptions.py          # NotFittedError, ConvergenceWarning
-├── linear_model/          # LinearRegression
+├── linear_model/          # LinearRegression, Ridge
 ├── metrics/               # regression and classification metrics
 └── utils/
     ├── validation.py      # input validation shared by all estimators

@@ -36,7 +36,7 @@ What the first session taught us, now reflected in `CLAUDE.md` and the
 
 | Algorithm | Module | Branch | Status |
 |---|---|---|---|
-| Ridge regression | `mlfs.linear_model` | `ridge` | Planned |
+| Ridge regression (`solve`, augmented `lstsq`, gradient descent) | `mlfs.linear_model` | `ridge` | Done |
 | Logistic regression | `mlfs.linear_model` | `logistic-regression` | Planned |
 | k-nearest neighbors | `mlfs.neighbors` | `knn` | Planned |
 | k-means (k-means++ init) | `mlfs.cluster` | `kmeans` | Planned |
@@ -49,5 +49,8 @@ Notes:
 
 - k-means needs a `BaseClusterer` in `mlfs.base`; the coordinator adds it
   before that session starts.
+- `Ridge` and `LinearRegression` repeat the gradient-descent loop and the
+  hyperparameter checks. Before Lasso or ElasticNet, the coordinator moves
+  them into a shared private helper.
 - Sessions sharing a subpackage (`linear_model`) only conflict on its
   `__init__.py` exports; the coordinator resolves those when merging.
