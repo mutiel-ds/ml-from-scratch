@@ -1,6 +1,6 @@
 """Custom exceptions raised by mlfs estimators."""
 
-__all__ = ["NotFittedError"]
+__all__ = ["ConvergenceWarning", "NotFittedError"]
 
 
 class NotFittedError(ValueError, AttributeError):
@@ -8,4 +8,13 @@ class NotFittedError(ValueError, AttributeError):
 
     It inherits from both ``ValueError`` and ``AttributeError`` so that callers
     catching either of the usual exceptions still handle it.
+    """
+
+
+class ConvergenceWarning(UserWarning):
+    """Warn that an iterative algorithm stopped before reaching its tolerance.
+
+    Raised through ``warnings.warn`` when ``max_iter`` iterations were not
+    enough for the stopping criterion to be met. The fitted model is still
+    usable, but it may be far from the optimum.
     """
