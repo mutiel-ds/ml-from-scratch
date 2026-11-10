@@ -16,18 +16,18 @@ import time
 from collections.abc import Callable
 
 import numpy as np
+from numpy.typing import NDArray
 
-from mlfs._typing import FloatArray
 from mlfs.linear_model import LinearRegression
 
 
 def gradient_descent_with_bias(
-    X: FloatArray,
-    y: FloatArray,
+    X: NDArray[np.float64],
+    y: NDArray[np.float64],
     learning_rate: float = 0.1,
     max_iter: int = 10_000,
     tol: float = 1e-12,
-) -> tuple[FloatArray, float]:
+) -> tuple[NDArray[np.float64], float]:
     """Minimize ``(1 / 2n) * ||Xw + b - y||^2`` over both ``w`` and ``b``.
 
     With residuals ``r = Xw + b - y`` the gradients are
