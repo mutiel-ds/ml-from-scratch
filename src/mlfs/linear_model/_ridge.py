@@ -1,13 +1,12 @@
 """Ridge regression (L2-regularized least squares)."""
 
-import warnings
 from typing import Literal, Self
 
 import numpy as np
 
 from mlfs._typing import ArrayLike, FloatArray
 from mlfs.base import BaseRegressor, check_is_fitted
-from mlfs.exceptions import ConvergenceWarning
+from mlfs.utils._optimize import check_gradient_descent_params, gradient_descent
 from mlfs.utils.validation import check_array, check_n_features, check_X_y
 
 __all__ = ["Ridge"]
@@ -141,12 +140,7 @@ class Ridge(BaseRegressor):
             raise ValueError(f"alpha must be finite and >= 0, got {self.alpha}.")
         if self.solver not in _SOLVERS:
             raise ValueError(f"solver must be one of {_SOLVERS}, got {self.solver!r}.")
-        if self.learning_rate <= 0:
-            raise ValueError(f"learning_rate must be > 0, got {self.learning_rate}.")
-        if self.max_iter < 1:
-            raise ValueError(f"max_iter must be >= 1, got {self.max_iter}.")
-        if self.tol < 0:
-            raise ValueError(f"tol must be >= 0, got {self.tol}.")
+        check_gradient_descent_params(self.learning_rate, self.max_iter, self.tol)
 
     def _solve(self, X: FloatArray, y: FloatArray) -> FloatArray:
         """Solve the regularized normal equation with ``np.linalg.solve``."""
@@ -175,50 +169,6 @@ class Ridge(BaseRegressor):
         y_aug = np.concatenate([y, np.zeros(n_features)])
         coef: FloatArray = np.linalg.lstsq(X_aug, y_aug, rcond=None)[0]
         return coef
-
-    def _gradient_descent(self, X: FloatArray, y: FloatArray) -> tuple[FloatArray, int]:
-        r"""Minimize the regularized mean squared loss by gradient descent.
-
-        .. math::
-
-            L(w) = \frac{1}{2n} \left( \lVert Xw - y \rVert_2^2
-            + \alpha \lVert w \rVert_2^2 \right), \qquad
-            \nabla L(w) = \frac{1}{n} \left( X^\top (Xw - y) + \alpha w \right).
-
-        The gradient is evaluated ``max_iter + 1`` times so that the solution
-        reached by the last update is also checked against ``tol``. Starting
-        from ``w = 0`` keeps the result deterministic. Returns the weights and
-        the number of updates performed.
-        """
-        n_samples = X.shape[0]
-        coef = np.zeros(X.shape[1])
-
-        # A learning rate that is too large overflows to inf/NaN; that is
-        # reported below as an error, so NumPy's warnings would be noise.
-        with np.errstate(over="ignore", invalid="ignore"):
-            n_iter = 0
-            while True:
-                gradient = (X.T @ (X @ coef - y) + self.alpha * coef) / n_samples
-                if np.linalg.norm(gradient) < self.tol:
-                    return coef, n_iter
-                if n_iter == self.max_iter:
-                    break  # out of updates; the last solution was just checked
-                coef = coef - self.learning_rate * gradient
-                n_iter += 1
-                if not np.all(np.isfinite(coef)):
-                    raise ValueError(
-                        "Gradient descent diverged: the weights are not finite. "
-                        "Use a smaller learning_rate or scale the features."
-                    )
-
-        warnings.warn(
-            f"Gradient descent did not converge within max_iter={self.max_iter} "
-            f"iterations. Increase max_iter or learning_rate, or scale the "
-            "features.",
-            ConvergenceWarning,
-            stacklevel=3,
-        )
-        return coef, self.max_iter
 
     def fit(self, X: ArrayLike, y: ArrayLike) -> Self:
         """Fit the ridge model.
@@ -257,7 +207,19 @@ class Ridge(BaseRegressor):
         y_centered = y_checked - y_offset
 
         if self.solver == "gradient_descent":
-            coef, self.n_iter_ = self._gradient_descent(X_centered, y_centered)
+            n_samples = X_centered.shape[0]
+            # Called directly from fit so the ConvergenceWarning points at the
+            # user's fit(...) line.
+            coef, self.n_iter_ = gradient_descent(
+                lambda w: (
+                    (X_centered.T @ (X_centered @ w - y_centered) + self.alpha * w)
+                    / n_samples
+                ),
+                np.zeros(X_centered.shape[1]),
+                learning_rate=self.learning_rate,
+                max_iter=self.max_iter,
+                tol=self.tol,
+            )
         else:
             if self.solver == "solve":
                 coef = self._solve(X_centered, y_centered)
