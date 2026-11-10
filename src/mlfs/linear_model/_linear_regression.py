@@ -1,11 +1,13 @@
 """Ordinary least squares linear regression."""
 
+import warnings
 from typing import Literal, Self
 
 import numpy as np
 
 from mlfs._typing import ArrayLike, FloatArray
 from mlfs.base import BaseRegressor, check_is_fitted
+from mlfs.exceptions import ConvergenceWarning
 from mlfs.utils.validation import check_array, check_n_features, check_X_y
 
 __all__ = ["LinearRegression"]
@@ -106,6 +108,53 @@ class LinearRegression(BaseRegressor):
         if self.tol < 0:
             raise ValueError(f"tol must be >= 0, got {self.tol}.")
 
+    def _gradient_descent(self, X: FloatArray, y: FloatArray) -> tuple[FloatArray, int]:
+        r"""Minimize the mean squared loss by batch gradient descent.
+
+        With centered ``X`` and ``y`` the loss and its gradient are
+
+        .. math::
+
+            L(w) = \frac{1}{2n} \lVert Xw - y \rVert_2^2, \qquad
+            \nabla L(w) = \frac{1}{n} X^\top (Xw - y),
+
+        and each iteration performs the update
+        :math:`w \leftarrow w - \eta \nabla L(w)`. The gradient is evaluated
+        ``max_iter + 1`` times so that the solution reached by the last
+        update is also checked against ``tol``.
+
+        Starting from ``w = 0`` keeps the result deterministic. Returns the
+        weights and the number of updates performed.
+        """
+        n_samples = X.shape[0]
+        coef = np.zeros(X.shape[1])
+
+        # With a learning rate that is too large the weights overflow to inf
+        # and then NaN. That is reported below as an error, so NumPy's own
+        # overflow warnings would only be noise.
+        with np.errstate(over="ignore", invalid="ignore"):
+            for n_iter in range(self.max_iter + 1):
+                gradient = X.T @ (X @ coef - y) / n_samples
+                if np.linalg.norm(gradient) < self.tol:
+                    return coef, n_iter
+                if n_iter == self.max_iter:
+                    break  # out of updates; the last solution was just checked
+                coef = coef - self.learning_rate * gradient
+                if not np.all(np.isfinite(coef)):
+                    raise ValueError(
+                        "Gradient descent diverged: the weights are not finite. "
+                        "Use a smaller learning_rate or scale the features."
+                    )
+
+        warnings.warn(
+            f"Gradient descent did not converge within max_iter={self.max_iter} "
+            f"iterations. Increase max_iter or learning_rate, or scale the "
+            "features.",
+            ConvergenceWarning,
+            stacklevel=3,
+        )
+        return coef, self.max_iter
+
     def fit(self, X: ArrayLike, y: ArrayLike) -> Self:
         """Fit the linear model.
 
@@ -145,7 +194,7 @@ class LinearRegression(BaseRegressor):
             # X is rank-deficient. rcond=None uses the modern default cutoff.
             coef = np.linalg.lstsq(X_centered, y_centered, rcond=None)[0]
         else:
-            raise NotImplementedError("gradient_descent is added in a later step.")
+            coef, self.n_iter_ = self._gradient_descent(X_centered, y_centered)
 
         self.coef_ = coef
         self.intercept_ = float(y_offset - X_offset @ coef)
