@@ -126,16 +126,19 @@ class LogisticRegression(BaseClassifier):
     .. math::
 
         L(w, b) = \frac{1}{n} \left[
-        -\sum_{i=1}^{n} y_i \log p_i + (1 - y_i) \log (1 - p_i)
+        -\sum_{i=1}^{n} \bigl[ y_i \log p_i + (1 - y_i) \log (1 - p_i) \bigr]
         + \frac{\alpha}{2} \lVert w \rVert_2^2
         \right],
         \qquad p_i = \sigma(x_i^\top w + b).
 
-    The intercept :math:`b` is deliberately not penalized. The loss is convex
-    (its Hessian is :math:`\frac{1}{n} X^\top \mathrm{diag}(p_i (1 - p_i)) X
-    + \frac{\alpha}{n} I`, which is positive semidefinite), so gradient
-    descent reaches the global minimum, but there is no closed form because
-    setting the gradient to zero is a nonlinear equation in :math:`w`.
+    The intercept :math:`b` is deliberately not penalized. The loss is convex:
+    with respect to :math:`w` its Hessian is
+    :math:`\frac{1}{n} X^\top \mathrm{diag}(p_i (1 - p_i)) X
+    + \frac{\alpha}{n} I`, which is positive semidefinite, and the penalty
+    term :math:`\frac{\alpha}{n} I` applies to the weights only, never to
+    :math:`b`. So gradient descent reaches the global minimum, but there is no
+    closed form because setting the gradient to zero is a nonlinear equation
+    in :math:`w`.
 
     Unlike in linear regression, centering the data cannot remove the
     intercept, so :math:`(w, b)` is optimized as a single parameter vector.
