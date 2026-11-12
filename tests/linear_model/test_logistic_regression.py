@@ -2,10 +2,36 @@
 
 import numpy as np
 import pytest
+from sklearn.linear_model import LogisticRegression as SklearnLogisticRegression
 
 from mlfs.exceptions import ConvergenceWarning, NotFittedError
 from mlfs.linear_model import LogisticRegression
 from mlfs.linear_model._logistic_regression import _encode_labels, _gradient, _sigmoid
+from mlfs.utils.estimator_checks import check_estimator
+
+# --- Contract ---------------------------------------------------------------
+
+# check_estimator's data is linearly separable, and pytest turns a
+# ConvergenceWarning into an error. So every combination keeps alpha > 0 and
+# gets enough iterations: with the default settings this data needs about
+# 1400 steps, more than the default max_iter=1000.
+
+
+@pytest.mark.parametrize(
+    "estimator",
+    [
+        LogisticRegression(max_iter=10_000),
+        LogisticRegression(fit_intercept=False, max_iter=10_000),
+        LogisticRegression(alpha=10.0),
+        LogisticRegression(learning_rate=0.5),
+    ],
+    ids=["more-iterations", "no-intercept", "strong-penalty", "large-learning-rate"],
+)
+def test_logistic_regression_satisfies_estimator_contract(
+    estimator: LogisticRegression,
+) -> None:
+    check_estimator(estimator)
+
 
 # --- Sigmoid ----------------------------------------------------------------
 
@@ -261,6 +287,53 @@ def test_prediction_with_wrong_number_of_features_raises_value_error(
 
     with pytest.raises(ValueError, match="X has 2 features"):
         getattr(model, method)([[1.0, 2.0]])
+
+
+# --- Reference: scikit-learn ------------------------------------------------
+
+
+def _noisy_binary_data() -> tuple[np.ndarray, np.ndarray]:
+    """Return a seeded, non-separable dataset, so the unpenalized fit exists."""
+    rng = np.random.default_rng(3)
+    X = rng.normal(size=(100, 3))
+    probability = 1 / (1 + np.exp(-(X @ [1.5, -2.0, 0.5] + 0.5)))
+    y = (rng.random(100) < probability).astype(int)
+    return X, y
+
+
+# sklearn's C is 1 / alpha (alpha = 0 is C = inf: no penalty).
+@pytest.mark.parametrize(
+    ("alpha", "C"),
+    [(1.0, 1.0), (5.0, 0.2), (0.0, np.inf)],
+    ids=["alpha-1", "alpha-5", "no-penalty"],
+)
+@pytest.mark.parametrize("fit_intercept", [True, False], ids=["intercept", "no-int"])
+def test_fit_matches_sklearn_on_noisy_data(
+    alpha: float, C: float, fit_intercept: bool
+) -> None:
+    X, y = _noisy_binary_data()
+    ours = LogisticRegression(
+        alpha=alpha,
+        fit_intercept=fit_intercept,
+        learning_rate=0.1,
+        max_iter=200_000,
+        tol=1e-12,
+    ).fit(X, y)
+
+    reference = SklearnLogisticRegression(
+        C=C, fit_intercept=fit_intercept, tol=1e-12, max_iter=10_000
+    ).fit(X, y)
+
+    # Both solvers are iterative and stop on a gradient tolerance, so the
+    # parameters agree only to the solvers' accuracy (observed: below 1e-7).
+    np.testing.assert_allclose(ours.coef_, reference.coef_[0], rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(
+        ours.intercept_, reference.intercept_[0], rtol=1e-6, atol=1e-6
+    )
+    np.testing.assert_allclose(
+        ours.predict_proba(X), reference.predict_proba(X), rtol=1e-6, atol=1e-6
+    )
+    np.testing.assert_array_equal(ours.predict(X), reference.predict(X))
 
 
 # --- Errors and edge cases --------------------------------------------------
