@@ -4,11 +4,21 @@ from typing import Any, Self
 
 import numpy as np
 
-from mlfs._typing import ArrayLike, NDArray
+from mlfs._typing import ArrayLike, FloatArray, NDArray
 from mlfs.base import BaseClassifier
 from mlfs.utils._optimize import check_gradient_descent_params
 
 __all__ = ["LogisticRegression"]
+
+
+def _sigmoid(z: FloatArray) -> FloatArray:
+    r"""Compute the logistic function :math:`\sigma(z) = 1 / (1 + e^{-z})`.
+
+    Must not overflow or emit warnings for very large ``|z|`` (for example
+    ``z = -1000``, where ``np.exp(1000)`` is ``inf``).
+    """
+    e = np.exp(-np.abs(z))
+    return np.where(z < 0, e / (1 + e), 1 / (1 + e))
 
 
 class LogisticRegression(BaseClassifier):
