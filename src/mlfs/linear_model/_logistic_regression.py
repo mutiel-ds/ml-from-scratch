@@ -21,6 +21,43 @@ def _sigmoid(z: FloatArray) -> FloatArray:
     return np.where(z < 0, e / (1 + e), 1 / (1 + e))
 
 
+def _encode_labels(y: NDArray[Any]) -> tuple[NDArray[Any], FloatArray]:
+    """Map two arbitrary class labels to 0.0 and 1.0.
+
+    Parameters
+    ----------
+    y : ndarray of shape (n_samples,)
+        Labels of any sortable dtype, for example integers or strings.
+
+    Returns
+    -------
+    classes : ndarray of shape (2,)
+        The sorted unique labels. ``classes[1]`` is the positive class.
+    y_encoded : ndarray of shape (n_samples,)
+        ``0.0`` where ``y == classes[0]`` and ``1.0`` where ``y == classes[1]``.
+
+    Raises
+    ------
+    ValueError
+        If ``y`` has NaN or infinite values, or does not have exactly two
+        distinct labels.
+    """
+    # np.unique would silently treat NaN as one more class label.
+    if y.dtype.kind == "f" and not np.all(np.isfinite(y)):
+        raise ValueError("y contains NaN or infinite values.")
+
+    # return_inverse gives, for each sample, the index of its label in the
+    # sorted classes: exactly the 0/1 encoding when there are two classes.
+    classes, inverse = np.unique(y, return_inverse=True)
+    if len(classes) != 2:
+        raise ValueError(
+            f"LogisticRegression supports binary classification only: y must "
+            f"contain exactly 2 distinct labels, got {len(classes)}: "
+            f"{classes.tolist()}."
+        )
+    return classes, inverse.astype(np.float64)
+
+
 class LogisticRegression(BaseClassifier):
     r"""Binary logistic regression with L2 regularization.
 
