@@ -3,6 +3,7 @@
 import numpy as np
 import pytest
 
+from mlfs.exceptions import ConvergenceWarning
 from mlfs.linear_model import LogisticRegression
 from mlfs.linear_model._logistic_regression import _encode_labels, _gradient, _sigmoid
 
@@ -140,6 +141,59 @@ def test_encode_labels_with_non_finite_float_label_raises_value_error(
         _encode_labels(y)
 
 
+# --- Known answers ----------------------------------------------------------
+
+
+def test_fit_with_identical_samples_and_balanced_labels_keeps_zero_parameters() -> None:
+    X = [[1.0], [1.0]]
+    y = [0, 1]
+
+    model = LogisticRegression(alpha=0.0).fit(X, y)
+
+    # At w = b = 0 every p = 0.5, so p - y = [0.5, -0.5] and both gradients
+    # are 0: the start is already optimal and no step is taken.
+    np.testing.assert_allclose(model.coef_, [0.0], atol=1e-12)
+    assert model.intercept_ == pytest.approx(0.0, abs=1e-12)
+    assert model.n_iter_ == 0
+
+
+def test_fit_one_step_moves_parameters_along_negative_gradient() -> None:
+    X = [[1.0], [-1.0]]
+    y = [1, 0]
+    model = LogisticRegression(alpha=0.0, learning_rate=0.1, max_iter=1)
+
+    with pytest.warns(ConvergenceWarning, match="did not converge"):
+        model.fit(X, y)
+
+    # Gradient at 0 is [-0.5, 0] (see the gradient tests), so one step of
+    # size 0.1 gives [0 - 0.1*(-0.5), 0 - 0.1*0] = [0.05, 0].
+    np.testing.assert_allclose(model.coef_, [0.05])
+    assert model.intercept_ == pytest.approx(0.0, abs=1e-12)
+    assert model.n_iter_ == 1
+
+
+def test_fit_with_string_labels_stores_sorted_classes() -> None:
+    model = LogisticRegression().fit([[1.0], [-1.0], [2.0]], ["yes", "no", "yes"])
+
+    np.testing.assert_array_equal(model.classes_, ["no", "yes"])
+
+
+def test_fit_without_intercept_sets_intercept_zero_and_one_weight_per_feature() -> None:
+    X = [[1.0, 2.0], [-1.0, 0.5], [2.0, -1.0]]
+    y = [1, 0, 1]
+
+    model = LogisticRegression(fit_intercept=False).fit(X, y)
+
+    assert model.coef_.shape == (2,)
+    assert model.intercept_ == 0.0
+
+
+def test_fit_sets_number_of_features() -> None:
+    model = LogisticRegression().fit([[1.0, 0.0], [-1.0, 0.5], [0.5, -1.0]], [1, 0, 1])
+
+    assert model.n_features_in_ == 2
+
+
 # --- Errors and edge cases --------------------------------------------------
 
 
@@ -176,3 +230,8 @@ def test_init_stores_hyperparameters_unchanged() -> None:
         "max_iter": 7,
         "tol": 1e-3,
     }
+
+
+def test_fit_with_three_classes_raises_value_error() -> None:
+    with pytest.raises(ValueError, match="exactly 2 distinct labels"):
+        LogisticRegression().fit([[1.0], [2.0], [3.0]], [0, 1, 2])

@@ -6,7 +6,8 @@ import numpy as np
 
 from mlfs._typing import ArrayLike, FloatArray, NDArray
 from mlfs.base import BaseClassifier
-from mlfs.utils._optimize import check_gradient_descent_params
+from mlfs.utils._optimize import check_gradient_descent_params, gradient_descent
+from mlfs.utils.validation import check_X_y
 
 __all__ = ["LogisticRegression"]
 
@@ -160,7 +161,27 @@ class LogisticRegression(BaseClassifier):
     tol : float, default=1e-6
         Gradient descent stops when the norm of the gradient falls below this
         value.
+
+    Attributes
+    ----------
+    coef_ : ndarray of shape (n_features,)
+        Estimated weights.
+    intercept_ : float
+        Estimated intercept; 0.0 if ``fit_intercept=False``.
+    classes_ : ndarray of shape (2,)
+        The sorted class labels. ``classes_[1]`` is the positive class, the
+        one whose probability the model estimates.
+    n_features_in_ : int
+        Number of features seen during ``fit``.
+    n_iter_ : int
+        Number of gradient descent steps run.
     """
+
+    coef_: FloatArray
+    intercept_: float
+    classes_: NDArray[Any]
+    n_features_in_: int
+    n_iter_: int
 
     def __init__(
         self,
@@ -185,9 +206,64 @@ class LogisticRegression(BaseClassifier):
         check_gradient_descent_params(self.learning_rate, self.max_iter, self.tol)
 
     def fit(self, X: ArrayLike, y: ArrayLike) -> Self:
-        """Fit the model (work in progress)."""
+        """Fit the logistic regression model.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Training data. Scale the features first: gradient descent
+            converges slowly (or diverges) on features of very different
+            magnitudes.
+        y : array-like of shape (n_samples,)
+            Labels. Exactly two distinct values are required; they may be of
+            any sortable type, for example integers or strings.
+
+        Returns
+        -------
+        self : LogisticRegression
+            The fitted estimator.
+
+        Raises
+        ------
+        ValueError
+            If a hyperparameter or the data is invalid, if ``y`` does not
+            contain exactly two classes, or if gradient descent diverges.
+
+        Warns
+        -----
+        ConvergenceWarning
+            If ``max_iter`` steps were not enough to reach ``tol``.
+        """
         self._check_params()
-        raise NotImplementedError
+        X_checked, y_checked = check_X_y(X, y, y_numeric=False)
+        classes, y_encoded = _encode_labels(y_checked)
+
+        n_features = X_checked.shape[1]
+        # The intercept is the last parameter, so that (w, b) is optimized as
+        # one vector: centering cannot remove it as in linear regression.
+        n_params = n_features + 1 if self.fit_intercept else n_features
+
+        # Called directly from fit so the ConvergenceWarning points at the
+        # user's fit(...) line.
+        params, self.n_iter_ = gradient_descent(
+            gradient=lambda theta: _gradient(
+                params=theta,
+                X=X_checked,
+                y=y_encoded,
+                alpha=self.alpha,
+                fit_intercept=self.fit_intercept,
+            ),
+            initial=np.zeros(n_params),
+            learning_rate=self.learning_rate,
+            max_iter=self.max_iter,
+            tol=self.tol,
+        )
+
+        self.coef_ = params[:n_features]
+        self.intercept_ = float(params[n_features]) if self.fit_intercept else 0.0
+        self.classes_ = classes
+        self.n_features_in_ = n_features
+        return self
 
     def predict(self, X: ArrayLike) -> NDArray[Any]:
         """Predict class labels (work in progress)."""
