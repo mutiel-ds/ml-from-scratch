@@ -37,7 +37,8 @@ What the first session taught us, now reflected in `CLAUDE.md` and the
 | Algorithm | Module | Branch | Status |
 |---|---|---|---|
 | Ridge regression (`solve`, augmented `lstsq`, gradient descent) | `mlfs.linear_model` | `ridge` | Done |
-| Logistic regression | `mlfs.linear_model` | `logistic-regression` | Planned |
+| Logistic regression (binary, L2, gradient descent) | `mlfs.linear_model` | `logistic-regression` | Done |
+| Multiclass logistic regression (softmax; `coef_` becomes `(n_classes, n_features)`) | `mlfs.linear_model` | `logistic-multiclass` | Next |
 | k-nearest neighbors | `mlfs.neighbors` | `knn` | Planned |
 | k-means (k-means++ init) | `mlfs.cluster` | `kmeans` | Planned |
 | Decision tree (CART) | `mlfs.tree` | `decision-tree` | Planned |
@@ -54,3 +55,21 @@ Notes:
   `LinearRegression` and `Ridge`); each estimator supplies only its gradient.
 - Sessions sharing a subpackage (`linear_model`) only conflict on its
   `__init__.py` exports; the coordinator resolves those when merging.
+
+## Phase 3: optimizers and extensions
+
+Shared infrastructure owned by the coordinator, then small changes in each
+estimator.
+
+| Item | Module | Status |
+|---|---|---|
+| `log_loss` metric (the loss value that second-order and quasi-Newton solvers need) | `mlfs.metrics` | Planned |
+| Newton's method (IRLS) and/or L-BFGS as shared solvers, offered through a `solver` hyperparameter | `mlfs.utils._optimize` | Planned |
+| Mini-batch stochastic gradient descent with `random_state` | `mlfs.utils._optimize` | Planned |
+| Standardization transformer (`StandardScaler`) | `mlfs.preprocessing` | Planned |
+| One-vs-rest wrapper for any binary classifier | `mlfs.multiclass` | Planned |
+
+Why later: plain gradient descent is 25 to 250 times slower than
+scikit-learn's L-BFGS in `examples/logistic_regression.py`, but a faster
+solver serves every iterative model, so it is built once, after the Phase 2
+algorithms give the library more breadth.

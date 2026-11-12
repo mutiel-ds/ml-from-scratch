@@ -17,7 +17,7 @@ enough to reuse.
 |---|---|---|
 | Linear regression | `mlfs.linear_model.LinearRegression` | Done |
 | Ridge regression | `mlfs.linear_model.Ridge` | Done |
-| Logistic regression | `mlfs.linear_model.LogisticRegression` | Planned |
+| Logistic regression (binary) | `mlfs.linear_model.LogisticRegression` | Done |
 | k-nearest neighbors | `mlfs.neighbors` | Planned |
 | k-means | `mlfs.cluster.KMeans` | Planned |
 | Decision tree (CART) | `mlfs.tree` | Planned |
@@ -65,6 +65,10 @@ them against scikit-learn.
 why it stays stable with nearly collinear features, and benchmarks its three
 solvers.
 
+[`examples/logistic_regression.py`](examples/logistic_regression.py) classifies
+string labels, shows the effect of regularization and feature scaling, and
+explains why separable data needs `alpha > 0`.
+
 ## Design
 
 Every estimator follows the same contract, defined in
@@ -102,7 +106,7 @@ uv run mypy                    # strict type checking
 src/mlfs/
 ├── base.py                # estimator base classes and check_is_fitted
 ├── exceptions.py          # NotFittedError, ConvergenceWarning
-├── linear_model/          # LinearRegression, Ridge
+├── linear_model/          # LinearRegression, Ridge, LogisticRegression
 ├── metrics/               # regression and classification metrics
 └── utils/
     ├── validation.py      # input validation shared by all estimators
