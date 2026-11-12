@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from mlfs.exceptions import ConvergenceWarning
+from mlfs.exceptions import ConvergenceWarning, NotFittedError
 from mlfs.linear_model import LogisticRegression
 from mlfs.linear_model._logistic_regression import _encode_labels, _gradient, _sigmoid
 
@@ -192,6 +192,75 @@ def test_fit_sets_number_of_features() -> None:
     model = LogisticRegression().fit([[1.0, 0.0], [-1.0, 0.5], [0.5, -1.0]], [1, 0, 1])
 
     assert model.n_features_in_ == 2
+
+
+# --- Prediction -------------------------------------------------------------
+
+
+def _model_with_parameters(
+    coef: float, intercept: float, classes: list[object]
+) -> LogisticRegression:
+    """Build a fitted model by hand, so prediction is tested without ``fit``."""
+    model = LogisticRegression()
+    model.coef_ = np.array([coef])
+    model.intercept_ = intercept
+    model.classes_ = np.array(classes)
+    model.n_features_in_ = 1
+    return model
+
+
+def test_decision_function_returns_linear_score() -> None:
+    model = _model_with_parameters(2.0, -1.0, ["a", "b"])
+
+    z = model.decision_function([[0.0], [0.5], [1.0]])
+
+    # z = 2x - 1.
+    np.testing.assert_allclose(z, [-1.0, 0.0, 1.0], atol=1e-12)
+
+
+def test_predict_proba_returns_sigmoid_of_score_for_both_classes() -> None:
+    model = _model_with_parameters(2.0, -1.0, ["a", "b"])
+
+    proba = model.predict_proba([[0.0], [0.5], [1.0]])
+
+    # Scores are [-1, 0, 1]; sigmoid(1) = 1 / (1 + e^-1) = 0.7310585786...,
+    # sigmoid(0) = 0.5 and sigmoid(-1) = 1 - sigmoid(1) = 0.2689414214...
+    expected = [[0.7310585786, 0.2689414214], [0.5, 0.5], [0.2689414214, 0.7310585786]]
+    np.testing.assert_allclose(proba, expected, rtol=1e-9)
+
+
+def test_predict_proba_at_extreme_scores_saturates_without_warnings() -> None:
+    model = _model_with_parameters(1000.0, 0.0, ["a", "b"])
+
+    proba = model.predict_proba([[-1.0], [1.0]])
+
+    np.testing.assert_allclose(proba, [[1.0, 0.0], [0.0, 1.0]], atol=1e-300)
+
+
+def test_predict_returns_original_labels_and_breaks_ties_to_first_class() -> None:
+    model = _model_with_parameters(2.0, -1.0, ["no", "yes"])
+
+    y_pred = model.predict([[0.0], [0.5], [1.0]])
+
+    # Scores are [-1, 0, 1]: negative -> "no", exactly 0 -> classes_[0] = "no",
+    # positive -> "yes".
+    np.testing.assert_array_equal(y_pred, ["no", "no", "yes"])
+
+
+@pytest.mark.parametrize("method", ["decision_function", "predict_proba", "predict"])
+def test_prediction_before_fit_raises_not_fitted_error(method: str) -> None:
+    with pytest.raises(NotFittedError, match="not fitted"):
+        getattr(LogisticRegression(), method)([[1.0]])
+
+
+@pytest.mark.parametrize("method", ["decision_function", "predict_proba", "predict"])
+def test_prediction_with_wrong_number_of_features_raises_value_error(
+    method: str,
+) -> None:
+    model = _model_with_parameters(1.0, 0.0, [0, 1])
+
+    with pytest.raises(ValueError, match="X has 2 features"):
+        getattr(model, method)([[1.0, 2.0]])
 
 
 # --- Errors and edge cases --------------------------------------------------

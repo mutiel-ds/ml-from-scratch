@@ -5,9 +5,9 @@ from typing import Any, Self
 import numpy as np
 
 from mlfs._typing import ArrayLike, FloatArray, NDArray
-from mlfs.base import BaseClassifier
+from mlfs.base import BaseClassifier, check_is_fitted
 from mlfs.utils._optimize import check_gradient_descent_params, gradient_descent
-from mlfs.utils.validation import check_X_y
+from mlfs.utils.validation import check_array, check_n_features, check_X_y
 
 __all__ = ["LogisticRegression"]
 
@@ -175,6 +175,18 @@ class LogisticRegression(BaseClassifier):
         Number of features seen during ``fit``.
     n_iter_ : int
         Number of gradient descent steps run.
+
+    Examples
+    --------
+    >>> from mlfs.linear_model import LogisticRegression
+    >>> X = [[-2.0], [-1.0], [1.0], [2.0]]
+    >>> model = LogisticRegression().fit(X, [0, 0, 1, 1])
+    >>> model.classes_
+    array([0, 1])
+    >>> model.predict([[-3.0], [3.0]])
+    array([0, 1])
+    >>> model.predict_proba([[0.0]]).round(3)
+    array([[0.5, 0.5]])
     """
 
     coef_: FloatArray
@@ -265,6 +277,88 @@ class LogisticRegression(BaseClassifier):
         self.n_features_in_ = n_features
         return self
 
+    def decision_function(self, X: ArrayLike) -> FloatArray:
+        """Return the linear score :math:`z = Xw + b` of each sample.
+
+        Positive scores mean the positive class (``classes_[1]``) is more
+        likely than the negative one.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Samples to score.
+
+        Returns
+        -------
+        z : ndarray of shape (n_samples,)
+            The scores, also known as log-odds.
+
+        Raises
+        ------
+        NotFittedError
+            If the model has not been fitted.
+        ValueError
+            If ``X`` is invalid or has a different number of features than
+            the data seen during ``fit``.
+        """
+        check_is_fitted(self)
+        X_checked = check_array(X)
+        check_n_features(X_checked, self.n_features_in_)
+        scores: FloatArray = X_checked @ self.coef_ + self.intercept_
+        return scores
+
+    def predict_proba(self, X: ArrayLike) -> FloatArray:
+        """Estimate the probability of each class for ``X``.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Samples to predict.
+
+        Returns
+        -------
+        proba : ndarray of shape (n_samples, 2)
+            Column 0 is the probability of ``classes_[0]`` and column 1 that
+            of ``classes_[1]``. Each row sums to 1.
+
+        Raises
+        ------
+        NotFittedError
+            If the model has not been fitted.
+        ValueError
+            If ``X`` is invalid or has a different number of features than
+            the data seen during ``fit``.
+        """
+        z = self.decision_function(X)
+        # sigmoid(-z) is 1 - sigmoid(z) computed without cancellation, which
+        # keeps tiny probabilities accurate when |z| is large.
+        proba: FloatArray = np.column_stack([_sigmoid(-z), _sigmoid(z)])
+        return proba
+
     def predict(self, X: ArrayLike) -> NDArray[Any]:
-        """Predict class labels (work in progress)."""
-        raise NotImplementedError
+        """Predict class labels for ``X``.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Samples to predict.
+
+        Returns
+        -------
+        y_pred : ndarray of shape (n_samples,)
+            The predicted labels, taken from ``classes_``. A sample whose
+            probability is exactly 0.5 (score 0) gets ``classes_[0]``.
+
+        Raises
+        ------
+        NotFittedError
+            If the model has not been fitted.
+        ValueError
+            If ``X`` is invalid or has a different number of features than
+            the data seen during ``fit``.
+        """
+        # Thresholding the score at 0 is the same as thresholding the
+        # probability at 0.5, without computing the sigmoid.
+        positive = self.decision_function(X) > 0
+        labels: NDArray[Any] = self.classes_[positive.astype(np.intp)]
+        return labels
