@@ -21,6 +21,56 @@ def _sigmoid(z: FloatArray) -> FloatArray:
     return np.where(z < 0, e / (1 + e), 1 / (1 + e))
 
 
+def _gradient(
+    params: FloatArray,
+    X: FloatArray,
+    y: FloatArray,
+    *,
+    alpha: float,
+    fit_intercept: bool,
+) -> FloatArray:
+    r"""Gradient of the penalized average log-loss with respect to ``params``.
+
+    Parameters
+    ----------
+    params : ndarray of shape (n_features + 1,) or (n_features,)
+        The weights :math:`w`, followed by the intercept :math:`b` when
+        ``fit_intercept`` is True.
+    X : ndarray of shape (n_samples, n_features)
+        Training data.
+    y : ndarray of shape (n_samples,)
+        Encoded labels, ``0.0`` or ``1.0``.
+    alpha : float
+        L2 penalty weight (applied to the weights only).
+    fit_intercept : bool
+        Whether ``params`` ends with an intercept.
+
+    Returns
+    -------
+    gradient : ndarray with the same shape as ``params``
+    """
+    # No penalty on the intercept, so it only enters through the residuals.
+    n = X.shape[0]
+    if fit_intercept:
+        w = params[:-1]
+        b = params[-1]
+    else:
+        w = params
+        b = 0.0
+
+    z = X @ w + b
+    p = _sigmoid(z)
+    res = p - y
+
+    grad_w: FloatArray = (1 / n) * (X.T @ res + alpha * w)
+    if fit_intercept:
+        grad_b = (1 / n) * np.sum(res)
+        gradient: FloatArray = np.append(grad_w, grad_b)
+        return gradient
+
+    return grad_w
+
+
 def _encode_labels(y: NDArray[Any]) -> tuple[NDArray[Any], FloatArray]:
     """Map two arbitrary class labels to 0.0 and 1.0.
 

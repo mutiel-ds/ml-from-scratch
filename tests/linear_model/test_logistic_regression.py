@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from mlfs.linear_model import LogisticRegression
-from mlfs.linear_model._logistic_regression import _encode_labels, _sigmoid
+from mlfs.linear_model._logistic_regression import _encode_labels, _gradient, _sigmoid
 
 # --- Sigmoid ----------------------------------------------------------------
 
@@ -46,6 +46,46 @@ def test_sigmoid_at_extreme_inputs_saturates_without_warnings() -> None:
     # atol is needed because assert_allclose's default is relative: it would
     # reject any tiny result when comparing with an exact 0.
     np.testing.assert_allclose(sigma, [0.0, 1.0], atol=1e-300)
+
+
+# --- Gradient ---------------------------------------------------------------
+
+
+def test_gradient_at_zero_params_without_penalty() -> None:
+    X = np.array([[1.0], [-1.0]])
+    y = np.array([1.0, 0.0])
+    params = np.array([0.0, 0.0])
+
+    grad = _gradient(params, X, y, alpha=0.0, fit_intercept=True)
+
+    # p = 0.5 everywhere, so p - y = [-0.5, 0.5];
+    # d/dw = (1*(-0.5) + (-1)*0.5) / 2 = -0.5;  d/db = (-0.5 + 0.5) / 2 = 0.
+    np.testing.assert_allclose(grad, [-0.5, 0.0], atol=1e-12)
+
+
+def test_gradient_penalizes_the_weight_but_not_the_intercept() -> None:
+    X = np.array([[2.0]])
+    y = np.array([1.0])
+    params = np.array([1.0, -2.0])
+
+    grad = _gradient(params, X, y, alpha=3.0, fit_intercept=True)
+
+    # p = 0.5, so p - y = [-0.5];
+    # d/dw = 2*(-0.5) + 3*1= -1 + 3 = 2;  d/db = -0.5 = -0.5.
+    np.testing.assert_allclose(grad, [2.0, -0.5], atol=1e-12)
+
+
+def test_gradient_without_intercept_returns_only_weight_gradient() -> None:
+    X = np.array([[1.0], [-1.0]])
+    y = np.array([1.0, 0.0])
+    params = np.array([0.0])
+
+    grad = _gradient(params, X, y, alpha=0.0, fit_intercept=False)
+
+    # Same data as the first test: p - y = [-0.5, 0.5] and
+    # d/dw = (1*(-0.5) + (-1)*0.5) / 2 = -0.5. There is no intercept entry,
+    # so the result has shape (1,), not (2,).
+    np.testing.assert_allclose(grad, [-0.5])
 
 
 # --- Label encoding ---------------------------------------------------------
