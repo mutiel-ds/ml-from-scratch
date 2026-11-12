@@ -163,13 +163,20 @@ def test_encode_labels_without_exactly_two_classes_raises_value_error(
         _encode_labels(np.asarray(y))
 
 
+def test_encode_labels_with_finite_float_labels_encodes_them() -> None:
+    classes, y_encoded = _encode_labels(np.array([0.5, 2.5, 2.5]))
+
+    np.testing.assert_array_equal(classes, [0.5, 2.5])
+    np.testing.assert_array_equal(y_encoded, [0.0, 1.0, 1.0])
+
+
 @pytest.mark.parametrize("bad", [np.nan, np.inf], ids=["nan", "inf"])
 def test_encode_labels_with_non_finite_float_label_raises_value_error(
     bad: float,
 ) -> None:
     y = np.array([0.0, 1.0, bad])
 
-    with pytest.raises(ValueError, match="NaN or infinite"):
+    with pytest.raises(ValueError, match=r"^y contains NaN or infinite values\.$"):
         _encode_labels(y)
 
 
@@ -445,6 +452,16 @@ def test_fit_with_invalid_hyperparameter_raises_value_error(
 
     with pytest.raises(ValueError, match=message):
         model.fit([[1.0], [2.0]], [0, 1])
+
+
+def test_init_defaults_are_documented_values() -> None:
+    assert LogisticRegression().get_params() == {
+        "alpha": 1.0,
+        "fit_intercept": True,
+        "learning_rate": 0.1,
+        "max_iter": 1000,
+        "tol": 1e-6,
+    }
 
 
 def test_init_stores_hyperparameters_unchanged() -> None:
