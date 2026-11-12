@@ -1,9 +1,15 @@
 """Tests for mlfs.linear_model.LogisticRegression."""
 
+import sys
+
 import numpy as np
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
+from hypothesis.extra import numpy as hnp
 from sklearn.linear_model import LogisticRegression as SklearnLogisticRegression
 
+from mlfs._typing import FloatArray
 from mlfs.exceptions import ConvergenceWarning, NotFittedError
 from mlfs.linear_model import LogisticRegression
 from mlfs.linear_model._logistic_regression import _encode_labels, _gradient, _sigmoid
@@ -336,6 +342,87 @@ def test_fit_matches_sklearn_on_noisy_data(
     np.testing.assert_array_equal(ours.predict(X), reference.predict(X))
 
 
+# --- Properties -------------------------------------------------------------
+
+# A fixed, well-conditioned X: Hypothesis varies the labels and the
+# hyperparameters, not the design matrix, so failures reflect the properties
+# and not ill-conditioning.
+_X_FIXED = np.random.default_rng(1).normal(size=(30, 3))
+# The first two labels are fixed so that both classes are always present.
+_labels = hnp.arrays(np.int64, 28, elements=st.integers(0, 1)).map(
+    lambda rest: np.concatenate([[0, 1], rest])
+)
+_alphas = st.floats(min_value=1.0, max_value=50.0)
+
+# Fitting is iterative, so these properties run fewer examples. max_iter is
+# generous because pytest turns a ConvergenceWarning into an error.
+_FEW_EXAMPLES = settings(max_examples=25)
+_FIT_KWARGS = {"max_iter": 20_000, "tol": 1e-10}
+
+
+@_FEW_EXAMPLES
+@given(y=_labels, alpha=_alphas)
+def test_predict_proba_gives_valid_probabilities_consistent_with_predict(
+    y: FloatArray, alpha: float
+) -> None:
+    model = LogisticRegression(alpha=alpha, **_FIT_KWARGS).fit(_X_FIXED, y)  # type: ignore[arg-type]
+
+    proba = model.predict_proba(_X_FIXED)
+
+    assert np.all((proba >= 0.0) & (proba <= 1.0))
+    np.testing.assert_allclose(proba.sum(axis=1), 1.0, rtol=0, atol=1e-12)
+    # argmax picks the first column on a tie, matching the documented rule.
+    np.testing.assert_array_equal(
+        model.predict(_X_FIXED), model.classes_[proba.argmax(axis=1)]
+    )
+
+
+@_FEW_EXAMPLES
+@given(y=_labels, alpha=_alphas)
+def test_fit_with_swapped_labels_negates_the_parameters(
+    y: FloatArray, alpha: float
+) -> None:
+    model = LogisticRegression(alpha=alpha, **_FIT_KWARGS)  # type: ignore[arg-type]
+
+    original = model.fit(_X_FIXED, y).coef_.copy(), model.intercept_
+    swapped = model.fit(_X_FIXED, 1 - y).coef_.copy(), model.intercept_
+
+    # sigmoid(-z) = 1 - sigmoid(z): swapping the classes mirrors the whole
+    # optimization, so (w, b) -> (-w, -b). Gradient descent follows the exact
+    # mirrored path, so only round-off separates the two results.
+    np.testing.assert_allclose(swapped[0], -original[0], atol=1e-9)
+    assert swapped[1] == pytest.approx(-original[1], abs=1e-9)
+
+
+@_FEW_EXAMPLES
+@given(y=_labels, alpha=_alphas, order=st.permutations(range(30)))
+def test_fit_is_invariant_to_the_order_of_the_training_samples(
+    y: FloatArray, alpha: float, order: list[int]
+) -> None:
+    model = LogisticRegression(alpha=alpha, **_FIT_KWARGS)  # type: ignore[arg-type]
+
+    original = model.fit(_X_FIXED, y).coef_.copy()
+    shuffled = model.fit(_X_FIXED[order], y[order]).coef_.copy()
+
+    # The loss is a sum over samples, so row order cannot matter; the sums
+    # are only reordered, which changes round-off.
+    np.testing.assert_allclose(shuffled, original, atol=1e-9)
+
+
+@_FEW_EXAMPLES
+@given(y=_labels, alpha=_alphas, extra=st.floats(min_value=0.0, max_value=50.0))
+def test_fit_with_larger_alpha_never_increases_coef_norm(
+    y: FloatArray, alpha: float, extra: float
+) -> None:
+    smaller = LogisticRegression(alpha=alpha, **_FIT_KWARGS).fit(_X_FIXED, y)  # type: ignore[arg-type]
+    larger = LogisticRegression(alpha=alpha + extra, **_FIT_KWARGS).fit(_X_FIXED, y)  # type: ignore[arg-type]
+
+    # The penalized minimum shrinks monotonically in alpha. The slack covers
+    # the stopping tolerance: the gradient norm is below 1e-10 and the
+    # curvature is at least alpha / n >= 1/30, so the error is about 3e-9.
+    assert np.linalg.norm(larger.coef_) <= np.linalg.norm(smaller.coef_) + 1e-7
+
+
 # --- Errors and edge cases --------------------------------------------------
 
 
@@ -377,3 +464,63 @@ def test_init_stores_hyperparameters_unchanged() -> None:
 def test_fit_with_three_classes_raises_value_error() -> None:
     with pytest.raises(ValueError, match="exactly 2 distinct labels"):
         LogisticRegression().fit([[1.0], [2.0], [3.0]], [0, 1, 2])
+
+
+def test_fit_with_a_single_sample_raises_value_error() -> None:
+    with pytest.raises(ValueError, match="got 1"):
+        LogisticRegression().fit([[1.0]], [0])
+
+
+def test_fit_with_a_single_feature_works() -> None:
+    model = LogisticRegression().fit([[-2.0], [-1.0], [1.0], [2.0]], [0, 0, 1, 1])
+
+    assert model.coef_.shape == (1,)
+    assert model.coef_[0] > 0  # larger x makes the positive class more likely
+
+
+def test_fit_on_separable_data_without_penalty_warns_and_grows_the_weight() -> None:
+    model = LogisticRegression(alpha=0.0, max_iter=100)
+
+    with pytest.warns(ConvergenceWarning, match="did not converge"):
+        model.fit([[1.0], [-1.0]], [1, 0])
+
+    # No finite weight minimizes the loss: it keeps increasing, so the run
+    # ends at max_iter. Each step adds lr * (1 - sigmoid(w)) / 2 > 0.
+    assert model.n_iter_ == 100
+    assert model.coef_[0] > 1.0
+
+
+def test_fit_on_separable_data_with_penalty_converges() -> None:
+    model = LogisticRegression(alpha=1.0).fit([[1.0], [-1.0]], [1, 0])
+
+    # The penalty gives the loss a finite minimizer, so no warning is raised
+    # (pytest would turn one into an error) and the weight stays moderate.
+    assert 0.0 < model.coef_[0] < 5.0
+    assert model.n_iter_ < 1000
+
+
+# mutmut wraps every function in a trampoline, which adds a stack frame and so
+# shifts where stacklevel points. The test is only meaningful without it.
+@pytest.mark.skipif(
+    "mutmut" in sys.modules, reason="mutmut's trampoline changes the call stack"
+)
+def test_convergence_warning_points_at_the_callers_fit_line() -> None:
+    model = LogisticRegression(max_iter=1)
+
+    with pytest.warns(ConvergenceWarning) as record:
+        model.fit([[1.0], [-1.0]], [1, 0])
+
+    # stacklevel=3 blames the line that called fit (this file), not the
+    # library's internals.
+    assert record[0].filename == __file__
+
+
+def test_refit_replaces_everything_learned_from_the_previous_data() -> None:
+    model = LogisticRegression()
+    model.fit([[1.0, 0.0], [-1.0, 0.5], [0.5, -1.0]], [1, 0, 1])
+
+    model.fit([[-2.0], [-1.0], [1.0], [2.0]], ["no", "no", "yes", "yes"])
+
+    assert model.n_features_in_ == 1
+    assert model.coef_.shape == (1,)
+    np.testing.assert_array_equal(model.classes_, ["no", "yes"])
